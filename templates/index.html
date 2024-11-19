@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Instant Messaging App with Rooms</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Room list -->
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Available Rooms</h5>
+                    </div>
+                    <ul class="list-group list-group-flush" id="roomList">
+                        <!-- Room names will be dynamically populated here -->
+                    </ul>
+                    <div class="card-footer">
+                        <input type="text" id="roomName" class="form-control mb-2" placeholder="Create new room">
+                        <button class="btn btn-secondary" id="createRoom">Create Room</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chat messages -->
+            <div class="col-md-9">
+                <div class="card">
+                    <div class="card-header text-center">
+                        <h3>Instant Messaging</h3>
+                    </div>
+                    <div class="card-body" id="messages" style="height: 400px; overflow-y: scroll;">
+                        <!-- Messages will appear here -->
+                    </div>
+                    <div class="card-footer">
+                        <form id="messageForm">
+                            <div class="input-group">
+                                <input type="text" id="message" class="form-control" placeholder="Enter your message" disabled>
+                                <div class="input-group-append">
+                                    <button class="btn btn-primary" type="submit" disabled>Send</button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        var socket = io();
+        var username = '';
+        var room = '';
+
+        // Prompt for a username when the page loads
+        window.onload = function() {
+            username = prompt("Enter your username:");
+        };
+
+        // Fetch the list of available rooms
+        socket.emit('get_rooms');
+
+        // Create a new room
+        document.getElementById('createRoom').onclick = function() {
+            room = document.getElementById('roomName').value;
+            if (room) {
+                socket.emit('create_room', room);
+                document.getElementById('roomName').value = ''; // Clear input
+            }
+        };
+
+        // Handle the room list response
+        socket.on('room_list', function(rooms) {
+            var roomList = document.getElementById('roomList');
+            roomList.innerHTML = ''; // Clear the current list
+            rooms.forEach(function(r) {
+                let listItem = document.createElement('li');
+                listItem.className = 'list-group-item';
+                listItem.innerHTML = r;
+                listItem.onclick = function() {
+                    room = r;
+                    socket.emit('join', {'username': username, 'room': room});
+                    document.getElementById('message').disabled = false;
+                    document.querySelector('button[type="submit"]').disabled = false;
+                    document.getElementById('messages').innerHTML = ''; // Clear old messages
+                };
+                roomList.appendChild(listItem);
+            });
+        });
+
+        // Capture form submit for sending messages
+        document.getElementById('messageForm').onsubmit = function(e) {
+            e.preventDefault();
+            let message = document.getElementById('message').value;
+            socket.emit('message', {'username': username, 'content': message, 'room': room});
+            document.getElementById('message').value = ''; // Clear input
+        };
+
+        // Listen for messages from the server
+        socket.on('message', function(msg) {
+            let messagesDiv = document.getElementById('messages');
+            let newMessage = document.createElement('div');
+            newMessage.innerHTML = `<strong>${msg.username}:</strong> ${msg.content} <em>(${msg.timestamp})</em>`;
+            messagesDiv.appendChild(newMessage);
+
+            // Scroll to the bottom when a new message is received
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        });
+    </script>
+</body>
+</html>
